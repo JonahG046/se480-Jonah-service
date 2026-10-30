@@ -5,7 +5,7 @@ app = FastAPI(title="SE 480 hello service")
 
 @app.get("/")
 def hello():
-    return {"message": "Hello from SE 480"}
+    return {"message": "Hello to you as well. Tomorrow is the Halloween!"}
 
 
 @app.get("/health")
