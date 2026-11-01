@@ -1,0 +1,514 @@
+
+openapi: 3.1.0
+
+info:
+  title: Student Assignment Tracker API
+  version: 1.0.0
+  contact:
+    url: https://github.com/JonahG046/se480-Jonah-service
+  description: |
+    An API that helps students track assignments and deadlines
+    across multiple courses.
+
+    Versioning Policy:
+    The API version is included in the base URL (/v1).
+    Within v1, existing fields, status codes, and error
+    meanings will remain compatible.
+
+    New optional fields and endpoints may be added without
+    changing the version. Removing or renaming fields,
+    changing existing behavior, or introducing new required
+    fields will require /v2.
+
+servers:
+  - url: https://se480-jonah-service.onrender.com/{version}
+    description: Render deployment
+    variables:
+      version:
+        default: v1
+        enum:
+          - v1
+
+components:
+  schemas:
+    Student:
+      type: object
+      description: A student who can have assignments.
+      required:
+        - id
+        - name
+        - email
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the student.
+          examples: ["stu_a7k92"]
+        name:
+          type: string
+          description: Student's name, supporting Unicode characters.
+          examples: ["Alex Johnson"]
+        email:
+          type: string
+          format: email
+          description: Student's email address.
+          examples: ["alex@example.edu"]
+
+    Course:
+      type: object
+      description: A course that assignments belong to.
+      required:
+        - id
+        - code
+        - name
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the course.
+          examples: ["crs_b8m21"]
+        code:
+          type: string
+          description: Course code used by the school.
+          examples: ["SE480"]
+        name:
+          type: string
+          description: Full name of the course.
+          examples: ["Software Engineering Project"]
+
+    Assignment:
+      type: object
+      description: An assignment belonging to a student and course.
+      required:
+        - id
+        - student_id
+        - course_id
+        - title
+        - due_at
+        - status
+        - updated_at
+      properties:
+        id:
+          type: string
+          readOnly: true
+          description: Unique identifier generated for the assignment.
+          examples: ["asg_k9p32"]
+        student_id:
+          type: string
+          description: Student who owns the assignment.
+          examples: ["stu_a7k92"]
+        course_id:
+          type: string
+          description: Course the assignment belongs to.
+          examples: ["crs_b8m21"]
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Name of the assignment.
+          examples: ["Database Design Project"]
+        due_at:
+          type: string
+          format: date-time
+          description: Assignment deadline with an explicit timezone offset.
+          examples: ["2026-11-15T23:59:00-06:00"]
+        status:
+          type: string
+          enum:
+            - pending
+            - completed
+          default: pending
+          description: Whether the assignment is finished.
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: When the assignment was last updated.
+          examples: ["2026-11-01T14:30:00-06:00"]
+
+    AssignmentCreate:
+      type: object
+      description: Information required to create an assignment.
+      additionalProperties: false
+      required:
+        - student_id
+        - course_id
+        - title
+        - due_at
+      properties:
+        student_id:
+          type: string
+          description: Student who will own the assignment.
+          examples: ["stu_a7k92"]
+        course_id:
+          type: string
+          description: Course the assignment belongs to.
+          examples: ["crs_b8m21"]
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Name of the assignment.
+          examples: ["Database Design Project"]
+        due_at:
+          type: string
+          format: date-time
+          description: Deadline with an explicit timezone offset.
+          examples: ["2026-11-15T23:59:00-06:00"]
+
+    AssignmentUpdate:
+      type: object
+      description: Fields that can be changed on an assignment.
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Updated assignment title.
+        course_id:
+          type: string
+          description: Updated course identifier.
+        due_at:
+          type: string
+          format: date-time
+          description: |
+            Updated deadline with an explicit timezone offset.
+            A completed assignment must be reopened in a
+            separate request before its deadline can change.
+        status:
+          type: string
+          enum:
+            - pending
+            - completed
+          description: Updated completion status.
+
+    ProblemDetails:
+      type: object
+      description: Standard error response used throughout the API.
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - instance
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Stable identifier for the kind of error.
+        title:
+          type: string
+          description: Short explanation of the error.
+        status:
+          type: integer
+          description: HTTP status code.
+        detail:
+          type: string
+          description: Explanation of what went wrong and how to fix it.
+        instance:
+          type: string
+          description: API request path where the error occurred.
+        errors:
+          type: array
+          description: Specific fields that failed validation.
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                description: Name of the invalid field.
+              message:
+                type: string
+                description: Explanation of what needs correcting.
+
+  responses:
+    ValidationFailed:
+      description: The request contains missing or invalid information.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://se480-jonah-service.onrender.com/problems/validation-failed
+            title: Invalid assignment information
+            status: 422
+            detail: Check the invalid fields and try again.
+            instance: /v1/assignments
+            errors:
+              - field: due_at
+                message: Include a valid date, time, and timezone offset.
+
+
+    NotFound:
+      description: The requested student, course, or assignment was not found.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://se480-jonah-service.onrender.com/problems/not-found
+            title: Resource not found
+            status: 404
+            detail: No resource exists with the provided identifier.
+            instance: /v1/assignments/asg_unknown
+
+
+    Conflict:
+      description: An assignment cannot be changed in its current state.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+          example:
+            type: https://se480-jonah-service.onrender.com/problems/completed-assignment
+            title: Completed assignment cannot be rescheduled
+            status: 409
+            detail: Reopen the assignment before changing its deadline.
+            instance: /v1/assignments/asg_k9p32
+
+
+tags:
+  - name: Students
+    description: Read-only student information.
+  - name: Courses
+    description: Read-only course information.
+  - name: Assignments
+    description: Create, view, update, and delete assignments.
+
+paths:
+  /students:
+    get:
+      tags:
+        - Students
+      summary: List students
+      description: |
+        Returns the students available in the system.
+        Student records are read-only in v1.
+      operationId: listStudents
+      responses:
+        '200':
+          description: Students retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Student'
+              example:
+                - id: stu_a7k92
+                  name: Alex Johnson
+                  email: alex@example.edu
+
+  /courses:
+    get:
+      tags:
+        - Courses
+      summary: List courses
+      description: |
+        Returns the courses available in the system.
+        Course records are read-only in v1.
+      operationId: listCourses
+      responses:
+        '200':
+          description: Courses retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Course'
+              example:
+                - id: crs_b8m21
+                  code: SE480
+                  name: Software Engineering Project
+
+  /assignments:
+    get:
+      tags:
+        - Assignments
+      summary: List assignments
+      description: |
+        Returns assignments in the system.
+        The optional student_id filter limits results to
+        one student. An unknown student returns 404.
+      operationId: listAssignments
+      parameters:
+        - name: student_id
+          in: query
+          required: false
+          description: Optional student ID used to filter assignments.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Assignments retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Assignment'
+              example:
+                - id: asg_k9p32
+                  student_id: stu_a7k92
+                  course_id: crs_b8m21
+                  title: Database Design Project
+                  due_at: "2026-11-15T23:59:00-06:00"
+                  status: pending
+                  updated_at: "2026-11-01T14:30:00-06:00"
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags:
+        - Assignments
+      summary: Create an assignment
+      description: |
+        Creates an assignment for an existing student
+        and course. New assignments start as pending.
+        The service generates the assignment ID and
+        updated_at timestamp.
+      operationId: createAssignment
+      requestBody:
+        required: true
+        description: Information needed to create an assignment.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentCreate'
+            example:
+              student_id: stu_a7k92
+              course_id: crs_b8m21
+              title: Database Design Project
+              due_at: "2026-11-15T23:59:00-06:00"
+      responses:
+        '201':
+          description: Assignment created successfully.
+          headers:
+            Location:
+              description: URL path of the new assignment.
+              schema:
+                type: string
+              example: /v1/assignments/asg_k9p32
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+              example:
+                id: asg_k9p32
+                student_id: stu_a7k92
+                course_id: crs_b8m21
+                title: Database Design Project
+                due_at: "2026-11-15T23:59:00-06:00"
+                status: pending
+                updated_at: "2026-11-01T14:30:00-06:00"
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /assignments/{assignment_id}:
+    parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        description: Unique identifier of the assignment.
+        schema:
+          type: string
+          minLength: 1
+
+    get:
+      tags:
+        - Assignments
+      summary: Get assignment details
+      description: |
+        Returns one assignment using its unique ID.
+      operationId: getAssignment
+      responses:
+        '200':
+          description: Assignment retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+              example:
+                id: asg_k9p32
+                student_id: stu_a7k92
+                course_id: crs_b8m21
+                title: Database Design Project
+                due_at: "2026-11-15T23:59:00-06:00"
+                status: pending
+                updated_at: "2026-11-01T14:30:00-06:00"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Assignments
+      summary: Update an assignment
+      description: |
+        Updates the title, course, deadline, or status
+        of an existing assignment.
+
+        The student_id cannot be changed.
+
+        A completed assignment must first be reopened
+        in a separate PATCH request that sets its status
+        to pending before its due date can be changed.
+        Otherwise, the service returns 409 Conflict.
+
+        Simultaneous updates from different clients are
+        a known risk. Concurrency protection is not
+        included in this initial version.
+      operationId: updateAssignment
+      requestBody:
+        required: true
+        description: One or more assignment fields to update.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentUpdate'
+            example:
+              status: completed
+      responses:
+        '200':
+          description: Assignment updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+              example:
+                id: asg_k9p32
+                student_id: stu_a7k92
+                course_id: crs_b8m21
+                title: Database Design Project
+                due_at: "2026-11-15T23:59:00-06:00"
+                status: completed
+                updated_at: "2026-11-01T15:00:00-06:00"
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+    delete:
+      tags:
+        - Assignments
+      summary: Delete an assignment
+      description: |
+        Permanently deletes an existing assignment.
+        Returns 204 on success with no response body.
+        An unknown assignment ID returns 404.
+      operationId: deleteAssignment
+      responses:
+        '204':
+          description: Assignment deleted successfully.
+        '404':
+          $ref: '#/components/responses/NotFound'
