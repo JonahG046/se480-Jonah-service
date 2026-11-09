@@ -192,6 +192,22 @@ pytest -q
 
 A separate deployed smoke check verifies the public service when its application URL is configured.
 
+
+## Accessibility Review
+
+### Screen-Reader Testing
+
+I performed a brief accessibility review of the deployed FastAPI documentation at `/docs` using Windows Narrator.
+
+During the review, I navigated through the API documentation and listened to how the screen reader announced the endpoints, descriptions, and interactive elements.
+
+The screen reader clearly announced the information, and I was able to understand the API documentation without any noticeable problems.
+
+I did not identify any accessibility issues that required changes during this brief review.
+
+This was a manual accessibility check and was separate from the automated unit and contract tests.
+
+
 ## Mock It
 
 Lab 2 established the API specification before the endpoints were implemented.
