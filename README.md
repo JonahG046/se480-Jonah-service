@@ -1,107 +1,299 @@
-# SE 480 - Student Assignment Tracker API
+
+# SE 480 — Student Assignment Tracker API
 
 **Deployed Application:** https://se480-jonah-service.onrender.com
 
+**API Documentation:** https://se480-jonah-service.onrender.com/docs
+
 **Health Check:** https://se480-jonah-service.onrender.com/health
 
-This project is a Student Assignment Tracker API for SE 480. The goal is to help students manage assignments and deadlines across multiple courses.
+## Project Overview
 
-Lab 1 focused on setting up the FastAPI service, deploying it to Render, and configuring GitHub Actions. Lab 2 focuses on designing the assignment tracking API using OpenAPI and testing it with a mock server before implementing the endpoints.
+The Student Assignment Tracker is a FastAPI service designed to help students manage assignments and deadlines across multiple courses.
 
-## How to Run It
+The API allows clients to create, view, update, and delete assignments. Students and courses are read-only resources in version 1.
 
-1. Open this repository in GitHub Codespaces.
-2. Wait for the development container to finish building.
-3. Open a terminal and run:
+The service follows an OpenAPI 3.1 specification, provides consistent error responses, and includes automated unit and contract testing.
 
-   ```bash
-   python -m uvicorn app.main:app --reload --port 8000
-   ```
+## API Resources
 
-4. Open the forwarded port 8000 in your browser.
-5. Visit `/` to see the greeting and `/health` to check the service status.
+The API contains seven operations:
 
-Keep port 8000 private in Codespaces.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /v1/students | List available students |
+| GET | /v1/courses | List available courses |
+| GET | /v1/assignments | List assignments, optionally filtered by student |
+| POST | /v1/assignments | Create a new assignment |
+| GET | /v1/assignments/{assignment_id} | Retrieve one assignment |
+| PATCH | /v1/assignments/{assignment_id} | Update an assignment |
+| DELETE | /v1/assignments/{assignment_id} | Delete an assignment |
 
-To run the automated FastAPI tests:
+Assignments include a student ID, course ID, title, deadline, completion status, and last-updated timestamp.
+
+### Business Rule
+
+A completed assignment cannot have its deadline changed until it has been reopened.
+
+To change the deadline, a client must first send a PATCH request setting the assignment status to `pending`. A separate PATCH request can then update the deadline.
+
+Trying to change a completed assignment's deadline returns HTTP `409 Conflict`.
+
+## Run It
+
+### Requirements
+
+- Python 3.12
+- GitHub Codespaces or a compatible local environment
+
+Install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Start the FastAPI service:
+
+```bash
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+The API will be available at:
+
+- http://127.0.0.1:8000/docs
+- http://127.0.0.1:8000/health
+- http://127.0.0.1:8000/v1/students
+
+When using Codespaces, open the forwarded port 8000.
+
+Keep the development port private.
+
+### Example Request
+
+Create an assignment:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/assignments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "student_id": "stu_a7k92",
+    "course_id": "crs_b8m21",
+    "title": "Database Design Project",
+    "due_at": "2026-11-15T23:59:00-06:00"
+  }'
+```
+
+A successful request returns `201 Created`, the new assignment, and a `Location` header.
+
+### Run the Example Client
+
+The `client/example.py` program demonstrates how an external client communicates with the API.
+
+To use the local service:
+
+```bash
+python client/example.py --base-url http://127.0.0.1:8000
+```
+
+To use the deployed service:
+
+```bash
+python client/example.py
+```
+
+The client uses HTTPX2 to:
+
+1. Retrieve available students.
+2. Retrieve available courses.
+3. Create an assignment using an existing student and course.
+4. Deliberately submit an invalid numeric deadline.
+5. Display the resulting ProblemDetails validation error.
+
+The deployed service may need additional startup time after being inactive.
+
+## Test It
+
+Run the complete automated test suite:
+
+```bash
+make test
+```
+
+This runs:
 
 ```bash
 python -m pytest -q
 ```
 
-GitHub Actions automatically runs the smoke tests when changes are pushed to the repository. The deployed smoke test also checks the public Render service's health endpoint.
+The suite includes:
+
+- Tests for all seven API operations
+- Tests for successful assignment creation and updates
+- Validation tests for missing or invalid fields
+- Tests for unknown students, courses, and assignments
+- Tests for the completed-assignment deadline restriction
+- Tests for deletion and empty 204 responses
+- Tests for ProblemDetails error responses
+- Tests for unsupported HTTP methods and Allow headers
+- Schemathesis contract tests
+- An OpenAPI operation-drift test
+
+The latest local run completed with **37 tests passing**.
+
+### Contract Testing
+
+The OpenAPI specification is stored in `openapi.yaml`.
+
+Schemathesis generates requests from this specification and checks that API responses follow the documented contract.
+
+Run the contract tests separately:
+
+```bash
+python -m pytest tests/test_contract.py -v --tb=short
+```
+
+The latest contract-test run passed all eight tests.
+
+The drift test also compares operations declared in `openapi.yaml` against the operations generated by FastAPI.
+
+### What the First Contract Tests Found
+
+Schemathesis identified two problems during implementation.
+
+**1. Numeric timestamps were accepted as deadlines.**
+
+The OpenAPI specification defines `due_at` as a date-time string. Initially, Pydantic accepted a number such as `0` and converted it into a Unix timestamp.
+
+The solution was to add input validation that rejects numeric timestamps while accepting correctly formatted date-time strings and internally parsed datetime objects.
+
+A regression test was added to prevent the issue from returning.
+
+**2. Malformed request bodies produced undocumented HTTP 400 responses.**
+
+Schemathesis generated invalid request bodies for POST and PATCH operations.
+
+FastAPI initially returned HTTP 400 for some body-parsing failures, but the specification documents HTTP 422 for invalid request data.
+
+The shared error handler was updated to convert that specific parsing failure into an HTTP 422 ProblemDetails response.
+
+Two regression tests were added for malformed POST and PATCH requests.
+
+After these changes, the full unit and contract suites passed.
+
+### Continuous Integration
+
+GitHub Actions automatically runs the Python test suite on pushes and pull requests.
+
+The workflow installs the dependencies from `requirements.txt` and runs:
+
+```bash
+pytest -q
+```
+
+A separate deployed smoke check verifies the public service when its application URL is configured.
 
 ## Mock It
 
-Lab 2 introduces the Student Assignment Tracker API specification in `openapi.yaml`. The specification defines the resources, endpoints, expected responses, and error handling before the endpoints are implemented.
+Lab 2 established the API specification before the endpoints were implemented.
 
-The API has three main resources: students, courses, and assignments. Students and courses are read-only, while assignments can be created, viewed, updated, and deleted.
-
-### Validate the API Specification
-
-Run the following command in the Codespaces terminal:
+Validate the specification with Spectral:
 
 ```bash
 make lint
 ```
 
-This uses Spectral to validate `openapi.yaml` and check for errors or warnings.
-
-### Start the Mock Server
-
-Run:
+Start the Prism mock server:
 
 ```bash
 make mock
 ```
 
-This starts the Prism mock server on port 4010.
+Prism runs on port 4010.
 
-Open a second terminal and run:
+Example:
 
 ```bash
 curl -i http://127.0.0.1:4010/assignments
 ```
 
-The mock server should return a `200 OK` response containing an example assignment.
-
-To test a `404 Not Found` response:
+To request a simulated 404 response:
 
 ```bash
-curl -i -H 'Prefer: code=404' http://127.0.0.1:4010/assignments/asg_unknown
+curl -i -H 'Prefer: code=404' \
+  http://127.0.0.1:4010/assignments/asg_unknown
 ```
 
-This returns an example error using the `ProblemDetails` format defined in our API specification.
+The Prism mock uses paths without `/v1`, while the implemented FastAPI service uses the `/v1` prefix.
 
-Prism does not store or modify actual assignment data. It generates responses based on the OpenAPI specification so the API can be tested before implementation.
+Prism generates example responses and does not store assignments.
 
-The mock endpoints do not include `/v1` in their request paths. The version prefix is defined in the API's deployed base URL.
+## Error Handling
 
-Stop the mock server with `Ctrl + C` when finished.
+The API uses RFC 9457 ProblemDetails responses with the content type:
 
-## What's in the Repo
+`application/problem+json`
 
-- `app/main.py` — FastAPI application and existing service routes.
-- `tests/` — Automated tests for the FastAPI service.
-- `.devcontainer/` — GitHub Codespaces configuration, including Python and Node.js.
-- `.github/workflows/ci.yml` — GitHub Actions workflow for automated smoke tests.
+Common responses include:
+
+- `404 Not Found` — A requested resource does not exist.
+- `409 Conflict` — A completed assignment cannot have its deadline changed.
+- `422 Unprocessable Content` — Invalid or missing request information.
+
+ProblemDetails responses contain a type, title, status, detail, and instance. Validation errors may also include an `errors` array identifying specific fields.
+
+Unsupported HTTP methods return HTTP 405 with an Allow header.
+
+## Architecture and Limitations
+
+The application separates responsibilities across several modules:
+
+- `app/models.py` defines Pydantic request and response models.
+- `app/routers/` contains the student, course, and assignment operations.
+- `app/rules.py` contains the business rules.
+- `app/store.py` holds the sample students, courses, and assignments.
+- `app/errors.py` converts application and framework errors into ProblemDetails.
+- `app/main.py` registers the routes and error handlers.
+
+Assignments are currently stored in memory. They are lost when the application restarts.
+
+The first version does not include authentication, persistent database storage, or concurrency protection for simultaneous updates.
+
+These limitations are documented for future improvements.
+
+## What's in the Repository
+
+- `app/` — FastAPI application, models, routers, business rules, and storage.
+- `client/example.py` — Example API client using HTTPX2.
+- `tests/` — Unit, smoke, and contract tests.
+- `docs/proposal.md` — Milestone 1 project proposal.
+- `openapi.yaml` — OpenAPI 3.1 specification.
+- `schemathesis.toml` — Contract-testing configuration.
 - `requirements.txt` — Python dependencies.
-- `Dockerfile` — Configuration used to deploy the service to Render.
-- `openapi.yaml` — OpenAPI 3.1 specification for the Student Assignment Tracker.
-- `.spectral.yaml` — Spectral configuration used to validate the API specification.
-- `Makefile` — Commands for running Spectral and starting the Prism mock server.
-- `README.md` — Project setup, testing, and documentation.
+- `Makefile` — Commands for testing, linting, and mocking.
+- `.github/workflows/ci.yml` — GitHub Actions configuration.
+- `.devcontainer/` — Codespaces configuration.
+- `Dockerfile` — Render deployment configuration.
 
 ## Help Received
 
-I followed the course handouts, lecture slides, and provided repository template to complete the labs. I also used ChatGPT to help understand some of the instructions, work through the API design decisions, and troubleshoot issues during setup and testing.
+I used the course handouts, lecture materials, and professor's Reserve Rooms reference implementation to understand the expected architecture and testing approach.
+
+I also used ChatGPT to help interpret the instructions, implement the API, structure the application files, develop tests, troubleshoot problems, and prepare documentation.
+
+I ran the application in GitHub Codespaces, tested the API endpoints, reviewed test failures, corrected implementation issues, and verified the deployed service.
 
 ## AI Tools Used
 
-I used ChatGPT as a step-by-step guide throughout Labs 1 and 2.
+I used ChatGPT throughout Labs 1, 2, and 3.
 
-For Lab 1, I used it to better understand the setup instructions, troubleshoot GitHub and Render configuration, and help write the README. The FastAPI application and CI workflow came from the course template.
+For Lab 1, ChatGPT helped explain the setup instructions, troubleshoot GitHub and Render configuration, and document the initial FastAPI service.
 
-For Lab 2, I used ChatGPT to help develop the Student Assignment Tracker design sheet and draft sections of `openapi.yaml`, including the resource schemas, reusable error responses, and API endpoints. I also used it to troubleshoot the Node.js setup and help document the Spectral and Prism commands.
+For Lab 2, ChatGPT helped draft the API design, OpenAPI specification, error responses, and documentation. I used Spectral and Prism to validate and mock the proposed API.
 
-I reviewed the API design and ran the Spectral validation and Prism mock tests in Codespaces to verify the specification.
+For Lab 3, ChatGPT provided substantial assistance drafting the FastAPI models, routers, error handlers, business rules, storage implementation, automated tests, example client, and README.
+
+I used the professor's reference implementation as a guide and ran unit tests and Schemathesis contract tests to verify the resulting application.
+
+Schemathesis exposed two implementation issues involving numeric date-time input and malformed JSON handling. These were corrected, and the tests were rerun.
+
+The final local verification reported 37 passing tests, and the example client was successfully tested against the deployed Render service.
