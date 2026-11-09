@@ -1,4 +1,9 @@
 fastapi
 uvicorn[standard]
 httpx
+httpx2
 pytest
+pyyaml
+tzdata
+email-validator
+schemathesis>=4,<5

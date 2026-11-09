@@ -1,0 +1,5 @@
+# Settings for Lab 3 contract testing.
+# Allow business-rule errors that the schema alone cannot express.
+
+[checks.positive_data_acceptance]
+expected-statuses = ["2xx", "400", "404", "409", "422"]
