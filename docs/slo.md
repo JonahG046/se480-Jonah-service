@@ -58,26 +58,40 @@ The SLO does not currently measure client network
 latency or the time spent waiting for a sleeping
 Render instance to start.
 
+
 ## Measurement
 
-The SLO will be measured against the deployed Render
-service using a batch of requests.
+The SLO was measured against the deployed Render service
+on November 22, 2026.
 
-Record the actual results here after deployment:
-
-- Measurement date: Pending
-- Process started_at: Pending
-- Good requests: Pending
-- Total requests: Pending
-- Calculated SLI: Pending
+- Service: https://se480-jonah-service.onrender.com
+- Endpoint: GET /v1/assignments
+- Process started_at: 2026-11-22T18:18:57Z
+- Requests sent: 250
+- Successful HTTP 200 responses: 250
+- Requests completed within 500 ms: 250
+- Total measured requests: 250
+- Process restarted during test: No
+- SLO target: 95%
+- Actual SLI: 100.00%
 
 Calculation:
 
-SLI = (Good / Total) × 100
+SLI = (250 / 250) × 100 = 100.00%
 
-The local JSON request logs will also be checked
-against the same latency threshold to determine
-whether the observed counts agree.
+The service exceeded its 95% target during this test.
+
+The measurements came from the deployed application's
+Prometheus duration histogram, not estimates.
+
+This test measured application processing time for
+250 sequential read-only requests. It does not establish
+long-term availability or performance under heavy
+concurrent traffic.
+
+The local JSON request logs still need to be compared
+with deployed logs for additional verification.
+
 
 ## Error Budget
 
