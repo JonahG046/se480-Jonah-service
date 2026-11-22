@@ -1,50 +1,43 @@
 
 # SE 480 — Student Assignment Tracker API
 
-**Deployed Application:** https://se480-jonah-service.onrender.com
-
-**API Documentation:** https://se480-jonah-service.onrender.com/docs
-
-**Health Check:** https://se480-jonah-service.onrender.com/health
+**Deployed application:** https://se480-jonah-service.onrender.com  
+**API documentation:** https://se480-jonah-service.onrender.com/docs  
+**Health check:** https://se480-jonah-service.onrender.com/health  
+**Prometheus metrics:** https://se480-jonah-service.onrender.com/metrics
 
 ## Project Overview
 
 The Student Assignment Tracker is a FastAPI service designed to help students manage assignments and deadlines across multiple courses.
 
-The API allows clients to create, view, update, and delete assignments. Students and courses are read-only resources in version 1.
-
-The service follows an OpenAPI 3.1 specification, provides consistent error responses, and includes automated unit and contract testing.
+The API lets clients create, view, update, and delete assignments. Students and courses are read-only resources in version 1. The service follows an OpenAPI 3.1 specification, provides consistent RFC 9457 ProblemDetails error responses, and includes automated unit and contract tests.
 
 ## API Resources
 
 The API contains seven operations:
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | /v1/students | List available students |
-| GET | /v1/courses | List available courses |
-| GET | /v1/assignments | List assignments, optionally filtered by student |
-| POST | /v1/assignments | Create a new assignment |
-| GET | /v1/assignments/{assignment_id} | Retrieve one assignment |
-| PATCH | /v1/assignments/{assignment_id} | Update an assignment |
-| DELETE | /v1/assignments/{assignment_id} | Delete an assignment |
+| --- | --- | --- |
+| GET | `/v1/students` | List available students |
+| GET | `/v1/courses` | List available courses |
+| GET | `/v1/assignments` | List assignments, optionally filtered by student |
+| POST | `/v1/assignments` | Create a new assignment |
+| GET | `/v1/assignments/{assignment_id}` | Retrieve one assignment |
+| PATCH | `/v1/assignments/{assignment_id}` | Update an assignment |
+| DELETE | `/v1/assignments/{assignment_id}` | Delete an assignment |
 
-Assignments include a student ID, course ID, title, deadline, completion status, and last-updated timestamp.
+Assignments contain a student ID, course ID, title, due date, completion status, and last-updated timestamp.
 
 ### Business Rule
 
-A completed assignment cannot have its deadline changed until it has been reopened.
-
-To change the deadline, a client must first send a PATCH request setting the assignment status to `pending`. A separate PATCH request can then update the deadline.
-
-Trying to change a completed assignment's deadline returns HTTP `409 Conflict`.
+A completed assignment cannot have its deadline changed until it is reopened. To change its deadline, a client must first send a PATCH request setting its status to `pending`, then send a **separate** PATCH request changing the deadline. Attempting to change a completed assignment's due date, including changing its status in the same request, returns HTTP `409 Conflict`.
 
 ## Run It
 
 ### Requirements
 
 - Python 3.12
-- GitHub Codespaces or a compatible local environment
+- GitHub Codespaces or a compatible local development environment
 
 Install dependencies:
 
@@ -52,21 +45,26 @@ Install dependencies:
 python -m pip install -r requirements.txt
 ```
 
-Start the FastAPI service:
+Start the service locally:
 
 ```bash
-python -m uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000 --no-access-log
 ```
 
-The API will be available at:
+Or use:
+
+```bash
+make run
+```
+
+Useful local endpoints:
 
 - http://127.0.0.1:8000/docs
 - http://127.0.0.1:8000/health
+- http://127.0.0.1:8000/metrics
 - http://127.0.0.1:8000/v1/students
 
-When using Codespaces, open the forwarded port 8000.
-
-Keep the development port private.
+In Codespaces, open forwarded port 8000 and keep the development port private. The `--no-access-log` option prevents duplicate Uvicorn access messages; the application writes its own structured request summaries.
 
 ### Example Request
 
@@ -79,138 +77,182 @@ curl -X POST http://127.0.0.1:8000/v1/assignments \
     "student_id": "stu_a7k92",
     "course_id": "crs_b8m21",
     "title": "Database Design Project",
-    "due_at": "2026-11-15T23:59:00-06:00"
+    "due_at": "2026-11-25T23:59:00-06:00"
   }'
 ```
 
-A successful request returns `201 Created`, the new assignment, and a `Location` header.
+A successful request returns `201 Created`, the assignment, and a `Location` header.
 
 ### Run the Example Client
 
-The `client/example.py` program demonstrates how an external client communicates with the API.
+`client/example.py` demonstrates how an external client communicates with the service.
 
-To use the local service:
+Local API:
 
 ```bash
 python client/example.py --base-url http://127.0.0.1:8000
 ```
 
-To use the deployed service:
+Deployed API:
 
 ```bash
 python client/example.py
 ```
 
-The client uses HTTPX2 to:
-
-1. Retrieve available students.
-2. Retrieve available courses.
-3. Create an assignment using an existing student and course.
-4. Deliberately submit an invalid numeric deadline.
-5. Display the resulting ProblemDetails validation error.
-
-The deployed service may need additional startup time after being inactive.
+The client uses HTTPX2 to list students and courses, create an assignment, deliberately submit an invalid numeric deadline, and display the resulting ProblemDetails validation error. A sleeping Render service can take additional time to become available.
 
 ## Test It
 
-Run the complete automated test suite:
+Run the unit, smoke, contract, observability, and concurrency tests:
 
 ```bash
 make test
 ```
 
-This runs:
+Run all local quality checks:
 
 ```bash
-python -m pytest -q
+make check
 ```
 
-The suite includes:
+`make check` runs Ruff linting and formatting checks, pytest with coverage, and `pip-audit`. The required total coverage threshold is 85%; `app/rules.py` is covered at 100%.
 
-- Tests for all seven API operations
-- Tests for successful assignment creation and updates
-- Validation tests for missing or invalid fields
-- Tests for unknown students, courses, and assignments
-- Tests for the completed-assignment deadline restriction
-- Tests for deletion and empty 204 responses
-- Tests for ProblemDetails error responses
-- Tests for unsupported HTTP methods and Allow headers
-- Schemathesis contract tests
-- An OpenAPI operation-drift test
+**Latest verified local run (November 22, 2026): 52 passed, 1 expected failure (XFAIL), 99.37% overall coverage, and no known dependency vulnerabilities.** The XFAIL is a deliberately reproducible concurrent-update problem, not an unexpected CI failure.
 
-The latest local run completed with **37 tests passing**.
+Other useful commands:
+
+```bash
+make format      # Apply Ruff fixes and formatting
+make lint-py     # Check Python linting and formatting
+make coverage    # Tests with coverage report
+make audit       # Audit pinned dependencies
+```
+
+The tests cover all seven API operations, validation, HTTP error formats, method allowances, contract drift, request IDs, JSON logs, health and metrics endpoints, and the completed-assignment rule.
 
 ### Contract Testing
 
-The OpenAPI specification is stored in `openapi.yaml`.
-
-Schemathesis generates requests from this specification and checks that API responses follow the documented contract.
-
-Run the contract tests separately:
+The OpenAPI 3.1 specification is in `openapi.yaml`. Schemathesis generates requests from that contract, while a drift test compares its operations with those generated by FastAPI.
 
 ```bash
 python -m pytest tests/test_contract.py -v --tb=short
 ```
 
-The latest contract-test run passed all eight tests.
+Earlier contract testing found two problems:
 
-The drift test also compares operations declared in `openapi.yaml` against the operations generated by FastAPI.
-
-### What the First Contract Tests Found
-
-Schemathesis identified two problems during implementation.
-
-**1. Numeric timestamps were accepted as deadlines.**
-
-The OpenAPI specification defines `due_at` as a date-time string. Initially, Pydantic accepted a number such as `0` and converted it into a Unix timestamp.
-
-The solution was to add input validation that rejects numeric timestamps while accepting correctly formatted date-time strings and internally parsed datetime objects.
-
-A regression test was added to prevent the issue from returning.
-
-**2. Malformed request bodies produced undocumented HTTP 400 responses.**
-
-Schemathesis generated invalid request bodies for POST and PATCH operations.
-
-FastAPI initially returned HTTP 400 for some body-parsing failures, but the specification documents HTTP 422 for invalid request data.
-
-The shared error handler was updated to convert that specific parsing failure into an HTTP 422 ProblemDetails response.
-
-Two regression tests were added for malformed POST and PATCH requests.
-
-After these changes, the full unit and contract suites passed.
+1. **Numeric timestamps were accepted as deadlines.** The specification requires date-time strings, but Pydantic initially accepted numbers such as `0` as Unix timestamps. Input validation now rejects numeric timestamps, with a regression test.
+2. **Malformed request bodies returned undocumented HTTP 400 errors.** Some malformed POST and PATCH bodies are now normalized to the contract's `422` ProblemDetails response, with regression tests.
 
 ### Continuous Integration
 
-GitHub Actions automatically runs the Python test suite on pushes and pull requests.
+GitHub Actions runs on pushes and pull requests. It installs the pinned requirements and runs:
 
-The workflow installs the dependencies from `requirements.txt` and runs:
+- `ruff check . && ruff format --check .`
+- `python -m pytest -q --cov=app --cov-report=term-missing`
+- `pip-audit -r requirements.txt`
 
-```bash
-pytest -q
+A separate deployed smoke check runs when the GitHub Actions `APP_URL` repository variable is configured. Dependency updates are also monitored using Dependabot.
+
+## Operate It — Lab 5
+
+### Health and Metrics
+
+The deployed service has two unversioned operational endpoints, intentionally excluded from its OpenAPI operations:
+
+- **Health:** https://se480-jonah-service.onrender.com/health
+- **Metrics:** https://se480-jonah-service.onrender.com/metrics
+
+`/health` returns process status, UTC start time, uptime in seconds, the deployment commit, and **counts only** for students, courses, and assignments. It does not expose student records.
+
+`/metrics` returns Prometheus-formatted data, including request counts by route template and status class, duration histogram buckets, and `assignment_deadline_conflicts_total` (blocked completed-assignment deadline changes). Metrics reset when the process restarts.
+
+The Render health-check path is set to `/health`. The notification destination is email, with **Only failure notifications** selected.
+
+### Request IDs and Structured Logs
+
+Each request receives an `X-Request-ID` response header. The service accepts a caller-provided ID only when it passes validation; otherwise it generates a safe ID.
+
+Non-operational requests produce a structured JSON request-summary line containing the UTC timestamp, level, request ID, method, route template, HTTP status, and duration in milliseconds. `/health` and `/metrics` are intentionally excluded from the request counters, latency histogram, and request-summary logs. Uvicorn's duplicate access logs are disabled.
+
+These are **real Render request-summary entries captured November 22, 2026**:
+
+**Successful request (200):**
+
+```json
+{"ts":"2026-11-22T18:31:51.419Z","level":"INFO","request_id":"50542056df4432be","method":"GET","route":"/v1/students","status":200,"duration_ms":1}
 ```
 
-A separate deployed smoke check verifies the public service when its application URL is configured.
+**Unknown assignment (404):**
 
+```json
+{"ts":"2026-11-22T18:31:51.617Z","level":"INFO","request_id":"21a4e449661483fb","method":"GET","route":"/v1/assignments/{assignment_id}","status":404,"duration_ms":1}
+```
+
+**Invalid filter (422):**
+
+```json
+{"ts":"2026-11-22T18:31:51.702Z","level":"INFO","request_id":"f9cf05ebc17830ec","method":"GET","route":"/v1/assignments","status":422,"duration_ms":1}
+```
+
+The request summaries use route templates rather than raw URLs, and do not include bodies, names, email addresses, or authentication headers. Unhandled exceptions return a generic HTTP 500 ProblemDetails response containing a request ID header so the caller can reference it when reporting an issue. Server-side traceback logging is separate from the structured request summary.
+
+### Service Level Objective (SLO)
+
+**Promise:** At least 95% of requests to the `/v1/assignments` collection route should finish processing within 500 milliseconds.
+
+A deployed test on **November 22, 2026** sent **250 sequential read-only GET requests** to `/v1/assignments`. All 250 returned HTTP 200, and all 250 fell within the 500 ms Prometheus histogram bucket.
+
+| Metric | Measured result |
+| --- | ---: |
+| Target | 95% within 500 ms |
+| Requests sent | 250 |
+| Successful responses | 250 |
+| Requests within 500 ms | 250 |
+| Total measured requests | 250 |
+| Observed SLI | **100.00%** |
+| Process restarted during test | No |
+
+The process start reported during the test was `2026-11-22T18:18:57Z`. Measurements use the histogram's before/after counter differences, not client network time. This was a short sequential load test, **not a guarantee** of long-term availability or performance under concurrent load. Cold-start time before the application begins handling requests is not measured.
+
+See [docs/slo.md](docs/slo.md) for the SLI numerator, denominator, target, window, exclusions, and limitations.
+
+### Failure, Notification, and Recovery Experiment
+
+On **November 22, 2026**, I set `LAB5_FAIL_STARTUP=1` in Render and selected **Save and deploy**. The new deployment failed at approximately **12:28 PM Central (18:28 UTC)** with exit status 1. Render Logs displayed:
+
+```text
+LAB5_FAIL_STARTUP=1: intentional startup failure.
+```
+
+Render Events recorded the deployment failure, and I received the configured failure-notification email. I then deleted `LAB5_FAIL_STARTUP` and redeployed. The recovered `/health` response returned `"status": "ok"` with a new process start time of `2026-11-22T18:29:53Z`. The service was healthy again after the experiment.
+
+The notification's exact subject and receipt time should be recorded separately if needed for the lab evidence; they are not asserted here because they were not captured in this README.
+
+### Failure That Matters: Concurrent Updates
+
+A controlled local concurrency test reproduced a lost update: two simultaneous PATCH requests returned `200 OK`, but the final assignment preserved only one change. In the observed run, the course became `crs_c9n32` while the title remained `Original Assignment` instead of `Updated Assignment`.
+
+The test is marked `XFAIL` to document the known limitation without disguising it as a passing behavior. Structured logs showed two successful PATCH responses, and standard HTTP success metrics did not reveal the lost data. The current `/health` endpoint measures process health, not the correctness of concurrent updates. This is separate from the completed-assignment deadline rule, which correctly returns 409 for prohibited deadline changes.
+
+See [docs/postmortem.md](docs/postmortem.md) for the test-only incident, timeline, impact, detection, and action items.
+
+### Operational Limits
+
+- In-memory assignment data is lost on service restart or redeploy.
+- There is no authentication, authorization, or rate limiting in this course version. Operational metrics are publicly accessible; this is a known course-project limitation, not a production-ready deployment.
+- Request summaries intentionally omit raw paths and user information. Server exception tracebacks may still require review for sensitive information before production use.
+- The service currently has no persistent metrics storage or multi-instance aggregation, so counters reset after a restart.
+- Concurrent updates are not protected by locking or optimistic concurrency control.
 
 ## Accessibility Review
 
 ### Screen-Reader Testing
 
-I performed a brief accessibility review of the deployed FastAPI documentation at `/docs` using Windows Narrator.
-
-During the review, I navigated through the API documentation and listened to how the screen reader announced the endpoints, descriptions, and interactive elements.
-
-The screen reader clearly announced the information, and I was able to understand the API documentation without any noticeable problems.
-
-I did not identify any accessibility issues that required changes during this brief review.
-
-This was a manual accessibility check and was separate from the automated unit and contract tests.
-
+I performed a brief accessibility review of the deployed FastAPI documentation at `/docs` using Windows Narrator. I navigated through endpoints, descriptions, and interactive elements and was able to understand the information without noticing an issue during this limited manual review. This does not replace a full accessibility audit.
 
 ## Mock It
 
-Lab 2 established the API specification before the endpoints were implemented.
+Lab 2 established the API specification before implementation.
 
 Validate the specification with Spectral:
 
@@ -218,98 +260,80 @@ Validate the specification with Spectral:
 make lint
 ```
 
-Start the Prism mock server:
+Start Prism on port 4010:
 
 ```bash
 make mock
 ```
 
-Prism runs on port 4010.
-
-Example:
+Example mock request:
 
 ```bash
 curl -i http://127.0.0.1:4010/assignments
 ```
 
-To request a simulated 404 response:
+Simulate a 404 response:
 
 ```bash
 curl -i -H 'Prefer: code=404' \
   http://127.0.0.1:4010/assignments/asg_unknown
 ```
 
-The Prism mock uses paths without `/v1`, while the implemented FastAPI service uses the `/v1` prefix.
-
-Prism generates example responses and does not store assignments.
+Prism uses paths without `/v1`, whereas FastAPI's implementation uses `/v1`. Prism generates example responses but does not persist assignment records.
 
 ## Error Handling
 
-The API uses RFC 9457 ProblemDetails responses with the content type:
+The API uses RFC 9457 ProblemDetails with `application/problem+json` for application and framework errors. Common responses include:
 
-`application/problem+json`
+- `404 Not Found` — Unknown resource or path.
+- `405 Method Not Allowed` — Unsupported method, including the `Allow` header.
+- `409 Conflict` — Attempted deadline change on a completed assignment.
+- `422 Unprocessable Content` — Invalid or missing input.
+- `500 Internal Server Error` — Unexpected failure, with a generic message and request ID.
 
-Common responses include:
-
-- `404 Not Found` — A requested resource does not exist.
-- `409 Conflict` — A completed assignment cannot have its deadline changed.
-- `422 Unprocessable Content` — Invalid or missing request information.
-
-ProblemDetails responses contain a type, title, status, detail, and instance. Validation errors may also include an `errors` array identifying specific fields.
-
-Unsupported HTTP methods return HTTP 405 with an Allow header.
+ProblemDetails responses contain `type`, `title`, `status`, `detail`, and `instance`; validation errors may also include an `errors` array.
 
 ## Architecture and Limitations
 
-The application separates responsibilities across several modules:
+The application separates responsibilities across:
 
-- `app/models.py` defines Pydantic request and response models.
-- `app/routers/` contains the student, course, and assignment operations.
-- `app/rules.py` contains the business rules.
-- `app/store.py` holds the sample students, courses, and assignments.
-- `app/errors.py` converts application and framework errors into ProblemDetails.
-- `app/main.py` registers the routes and error handlers.
+- `app/models.py` — Pydantic input and output models.
+- `app/routers/` — Student, course, and assignment endpoints.
+- `app/rules.py` — Completed-assignment business rule.
+- `app/store.py` — Sample students/courses and in-memory assignments.
+- `app/errors.py` — Shared ProblemDetails error handling, including safe 500 responses.
+- `app/observability.py` — Request IDs, JSON logs, health reporting, metrics, and test-only startup failure switch.
+- `app/main.py` — FastAPI setup, routers, and operational endpoints.
 
-Assignments are currently stored in memory. They are lost when the application restarts.
-
-The first version does not include authentication, persistent database storage, or concurrency protection for simultaneous updates.
-
-These limitations are documented for future improvements.
+The first release deliberately has no database-backed persistence, login system, or concurrency protection. Those are future improvements rather than current features.
 
 ## What's in the Repository
 
-- `app/` — FastAPI application, models, routers, business rules, and storage.
-- `client/example.py` — Example API client using HTTPX2.
-- `tests/` — Unit, smoke, and contract tests.
-- `docs/proposal.md` — Milestone 1 project proposal.
+- `app/` — FastAPI application and supporting modules.
+- `client/example.py` — Example HTTPX2 API client.
+- `tests/` — Smoke, unit, contract, error-handling, observability, and concurrency tests.
+- `docs/proposal.md` — Milestone 1 proposal and scope changes.
+- `docs/slo.md` — Service-level objective and measurement.
+- `docs/postmortem.md` — Known lost-update problem and action items.
 - `openapi.yaml` — OpenAPI 3.1 specification.
 - `schemathesis.toml` — Contract-testing configuration.
-- `requirements.txt` — Python dependencies.
-- `Makefile` — Commands for testing, linting, and mocking.
-- `.github/workflows/ci.yml` — GitHub Actions configuration.
-- `.devcontainer/` — Codespaces configuration.
+- `requirements.in` and `requirements.txt` — Direct dependencies and pinned versions.
+- `Makefile` — Run, lint, format, test, audit, and contract-mock commands.
+- `.github/workflows/ci.yml` — GitHub Actions checks.
+- `.github/dependabot.yml` — Dependency update monitoring.
+- `.devcontainer/` — Codespaces environment.
 - `Dockerfile` — Render deployment configuration.
 
 ## Help Received
 
-I used the course handouts, lecture materials, and professor's Reserve Rooms reference implementation to understand the expected architecture and testing approach.
+I used course handouts, lecture material, and the professor's Reserve Rooms reference implementation to understand the expected API, testing, CI, and observability approach.
 
-I also used ChatGPT to help interpret the instructions, implement the API, structure the application files, develop tests, troubleshoot problems, and prepare documentation.
-
-I ran the application in GitHub Codespaces, tested the API endpoints, reviewed test failures, corrected implementation issues, and verified the deployed service.
+ChatGPT helped interpret the instructions, draft API and test code, troubleshoot linting and error handling, design the Lab 4/5 observability features, and prepare documentation. I made the changes in Codespaces, ran checks, reviewed the results, and verified the deployed API and Render logs.
 
 ## AI Tools Used
 
-I used ChatGPT throughout Labs 1, 2, and 3.
+I used ChatGPT during Labs 1–5. For Labs 1 and 2, it helped with Codespaces/Render setup, the API design, OpenAPI specification, Spectral/Prism commands, and documentation. For Lab 3, it provided substantial assistance drafting Pydantic models, routes, business rules, ProblemDetails handling, tests, and an example client.
 
-For Lab 1, ChatGPT helped explain the setup instructions, troubleshoot GitHub and Render configuration, and document the initial FastAPI service.
+For Lab 4, ChatGPT assisted with Ruff, the Makefile, dependency pinning/auditing, test coverage, and the unexpected-error handler. For Lab 5, it helped draft request-ID middleware, structured logging, Prometheus metrics, observability tests, the concurrency reproduction, SLO documentation, and the postmortem. I validated the implementation using pytest, CI-oriented checks, real Render logs, the 250-request SLO test, and the reversible failed-deployment experiment.
 
-For Lab 2, ChatGPT helped draft the API design, OpenAPI specification, error responses, and documentation. I used Spectral and Prism to validate and mock the proposed API.
-
-For Lab 3, ChatGPT provided substantial assistance drafting the FastAPI models, routers, error handlers, business rules, storage implementation, automated tests, example client, and README.
-
-I used the professor's reference implementation as a guide and ran unit tests and Schemathesis contract tests to verify the resulting application.
-
-Schemathesis exposed two implementation issues involving numeric date-time input and malformed JSON handling. These were corrected, and the tests were rerun.
-
-The final local verification reported 37 passing tests, and the example client was successfully tested against the deployed Render service.
+The latest verified local result was **52 passed, 1 XFAIL, 99.37% coverage**, and a clean dependency audit. The API was subsequently deployed to Render and its health, metrics, logging, and recovery behavior were checked.
