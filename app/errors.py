@@ -1,10 +1,10 @@
-
 """Shared error handling for the Student Assignment Tracker API.
 
 All API errors follow the ProblemDetails format defined in
 openapi.yaml and use application/problem+json.
 """
 
+import logging
 import re
 
 from fastapi import FastAPI, Request
@@ -13,7 +13,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-
 PROBLEM_BASE = "https://se480-jonah-service.onrender.com/problems/"
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 
@@ -21,41 +20,26 @@ PROBLEM_MEDIA_TYPE = "application/problem+json"
 class FieldError(BaseModel):
     """Identifies a field that failed validation."""
 
-    field: str = Field(
-        description="Name of the invalid field."
-    )
+    field: str = Field(description="Name of the invalid field.")
 
-    message: str = Field(
-        description="Explanation of what needs correcting."
-    )
+    message: str = Field(description="Explanation of what needs correcting.")
 
 
 class ProblemDetails(BaseModel):
     """The error response defined by our OpenAPI specification."""
 
-    type: str = Field(
-        description="Stable identifier for the kind of error."
-    )
+    type: str = Field(description="Stable identifier for the kind of error.")
 
-    title: str = Field(
-        description="Short explanation of the error."
-    )
+    title: str = Field(description="Short explanation of the error.")
 
-    status: int = Field(
-        description="HTTP status code."
-    )
+    status: int = Field(description="HTTP status code.")
 
-    detail: str = Field(
-        description="Explanation of what went wrong and how to fix it."
-    )
+    detail: str = Field(description="Explanation of what went wrong and how to fix it.")
 
-    instance: str = Field(
-        description="API request path where the error occurred."
-    )
+    instance: str = Field(description="API request path where the error occurred.")
 
     errors: list[FieldError] | None = Field(
-        default=None,
-        description="Specific fields that failed validation."
+        default=None, description="Specific fields that failed validation."
     )
 
 
@@ -106,11 +90,7 @@ def problem_response(
 ) -> JSONResponse:
     """Build an RFC 9457 ProblemDetails response."""
 
-    type_url = (
-        slug
-        if slug.startswith("about:")
-        else PROBLEM_BASE + slug
-    )
+    type_url = slug if slug.startswith("about:") else PROBLEM_BASE + slug
 
     body = ProblemDetails(
         type=type_url,
@@ -131,10 +111,7 @@ def problem_response(
 # Human-readable validation messages.
 _MESSAGES = {
     "missing": "is required",
-    "timezone_aware": (
-        "needs a time zone offset, for example "
-        "2026-11-15T23:59:00-06:00"
-    ),
+    "timezone_aware": ("needs a time zone offset, for example 2026-11-15T23:59:00-06:00"),
 }
 
 
@@ -156,9 +133,7 @@ def _allowed_methods(request: Request) -> str:
         path_regex = getattr(route, "path_regex", None)
 
         if path_regex is not None and path_regex.fullmatch(path):
-            methods.update(
-                getattr(route, "methods", None) or set()
-            )
+            methods.update(getattr(route, "methods", None) or set())
 
     # Fallback: use the generated OpenAPI operations.
     if not methods:
@@ -221,9 +196,7 @@ def install(app: FastAPI) -> None:
 
         for err in exc.errors():
             location = [
-                str(part)
-                for part in err.get("loc", [])
-                if part not in ("body", "query", "path")
+                str(part) for part in err.get("loc", []) if part not in ("body", "query", "path")
             ]
 
             errors.append(
@@ -264,26 +237,17 @@ def install(app: FastAPI) -> None:
         #
         # Schemathesis discovered this discrepancy when it
         # generated malformed JSON for POST and PATCH.
-        if (
-            exc.status_code == 400
-            and str(exc.detail) == "There was an error parsing the body"
-        ):
+        if exc.status_code == 400 and str(exc.detail) == "There was an error parsing the body":
             return problem_response(
                 request=request,
                 status=422,
                 slug="validation-failed",
                 title=ValidationFailed.title,
-                detail=(
-                    "The request body could not be parsed. "
-                    "Send a valid JSON document."
-                ),
+                detail=("The request body could not be parsed. Send a valid JSON document."),
                 errors=[
                     {
                         "field": "body",
-                        "message": (
-                            "The request body is malformed "
-                            "or incorrectly encoded."
-                        ),
+                        "message": ("The request body is malformed or incorrectly encoded."),
                     }
                 ],
             )
@@ -295,10 +259,7 @@ def install(app: FastAPI) -> None:
                 404,
                 "not-found",
                 "Resource not found",
-                (
-                    "There is nothing at this path. "
-                    "See /docs for the available operations."
-                ),
+                ("There is nothing at this path. See /docs for the available operations."),
             )
 
         # Unsupported HTTP method.
@@ -308,10 +269,7 @@ def install(app: FastAPI) -> None:
                 405,
                 "about:blank",
                 "Method not allowed",
-                (
-                    "This path does not support the "
-                    "requested HTTP method."
-                ),
+                ("This path does not support the requested HTTP method."),
             )
 
         # Other framework-generated HTTP errors.
@@ -331,5 +289,40 @@ def install(app: FastAPI) -> None:
         # Include all supported methods for the requested path.
         if exc.status_code == 405:
             response.headers["Allow"] = _allowed_methods(request)
+
+        return response
+
+    @app.exception_handler(Exception)
+    async def handle_unexpected(
+        request: Request,
+        exc: Exception,
+    ):
+        """Return a safe 500 response with its request ID."""
+
+        request_id = getattr(request.state, "request_id", "-")
+
+        route = getattr(request.scope.get("route"), "path", "unmatched")
+
+        logging.getLogger(__name__).error(
+            "Unhandled error request_id=%s method=%s route=%s",
+            request_id,
+            request.method,
+            route,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+
+        response = problem_response(
+            request=request,
+            status=500,
+            slug="about:blank",
+            title="Something went wrong",
+            detail=(
+                "The service could not complete the request. "
+                "Please try again later. If it keeps failing, "
+                "report the request ID in the X-Request-ID header."
+            ),
+        )
+
+        response.headers["X-Request-ID"] = request_id
 
         return response

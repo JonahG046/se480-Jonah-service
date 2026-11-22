@@ -1,4 +1,3 @@
-
 """Shared fixtures for Student Assignment Tracker tests."""
 
 import pytest

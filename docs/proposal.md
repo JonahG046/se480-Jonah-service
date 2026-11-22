@@ -72,15 +72,21 @@ Assignments are held in memory, so a service restart loses newly created assignm
 
 The main failure points are invalid client requests, conflicting updates, and temporary service unavailability. GitHub Actions runs automated tests before deployment changes are accepted.
 
+
 ## 7. What Changed Since the Pitch
 
 - The initial idea was narrowed to three resources and seven API operations to keep the project manageable.
 - The completed-assignment deadline restriction became an explicit business rule with a 409 Conflict response.
 - The API specification was written before implementation and checked using Spectral and a Prism mock server.
-- The actual FastAPI implementation now has unit tests and Schemathesis contract tests.
+- The FastAPI implementation now includes unit tests and Schemathesis contract tests.
 - Contract testing revealed that numeric timestamps were accepted incorrectly and malformed request bodies could produce undocumented responses. Both behaviors were corrected.
+- Lab 4 added stronger error handling, including safe HTTP 500 responses, automated code checks, and dependency auditing.
+- Lab 5 added structured JSON request logging, request IDs, health monitoring, and Prometheus metrics.
+- The simultaneous-update risk identified in Section 8 was reproduced in a concurrency test. Two PATCH requests returned HTTP 200, but one update was lost.
+- The completed-assignment deadline restriction still works correctly. The concurrency issue is a separate problem that remains open and is documented in `docs/postmortem.md`.
 
-These changes reflect design decisions and implementation/testing work. No additional instructor feedback is assumed here.
+These changes reflect the implementation and testing completed so far. The remaining concurrency issue will be considered for the final project.
+
 
 ## 8. Plan and Risks
 

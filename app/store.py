@@ -1,4 +1,3 @@
-
 """In-memory storage for the Student Assignment Tracker.
 
 Students and courses contain sample records and are read-only in v1.
@@ -9,10 +8,9 @@ outside the scope of Lab 3.
 """
 
 import secrets
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.models import Assignment, Course, Student
-
 
 # Sample students available to the API.
 STUDENTS: dict[str, Student] = {
@@ -61,7 +59,7 @@ def new_assignment_id() -> str:
 def current_time() -> datetime:
     """Return the current time as a timezone-aware UTC datetime."""
 
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def reset() -> None:

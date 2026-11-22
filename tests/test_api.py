@@ -1,8 +1,6 @@
-
 """Unit tests for the Student Assignment Tracker API."""
 
 from fastapi.testclient import TestClient
-
 
 VALID_ASSIGNMENT = {
     "student_id": "stu_a7k92",
@@ -25,9 +23,7 @@ def assert_problem(response, status: int, slug: str):
 
     assert response.status_code == status
 
-    assert response.headers["content-type"].startswith(
-        "application/problem+json"
-    )
+    assert response.headers["content-type"].startswith("application/problem+json")
 
     body = response.json()
 
@@ -43,6 +39,7 @@ def assert_problem(response, status: int, slug: str):
 # ---------------------------------------------------------
 # Read-only resources
 # ---------------------------------------------------------
+
 
 def test_list_students(client):
     response = client.get("/v1/students")
@@ -72,6 +69,7 @@ def test_list_courses(client):
 # ---------------------------------------------------------
 # GET /assignments
 # ---------------------------------------------------------
+
 
 def test_list_assignments_empty(client):
     response = client.get("/v1/assignments")
@@ -127,6 +125,7 @@ def test_list_assignments_invalid_filter(client):
 # POST /assignments
 # ---------------------------------------------------------
 
+
 def test_create_assignment(client):
     response = create_assignment(client)
 
@@ -141,9 +140,7 @@ def test_create_assignment(client):
     assert body["status"] == "pending"
     assert "updated_at" in body
 
-    assert response.headers["Location"] == (
-        f"/v1/assignments/{body['id']}"
-    )
+    assert response.headers["Location"] == (f"/v1/assignments/{body['id']}")
 
 
 def test_create_assignment_rejects_numeric_deadline(client):
@@ -157,10 +154,7 @@ def test_create_assignment_rejects_numeric_deadline(client):
         "validation-failed",
     )
 
-    assert any(
-        error["field"] == "due_at"
-        for error in problem["errors"]
-    )
+    assert any(error["field"] == "due_at" for error in problem["errors"])
 
 
 def test_create_assignment_missing_title(client):
@@ -175,10 +169,7 @@ def test_create_assignment_missing_title(client):
         "validation-failed",
     )
 
-    assert any(
-        error["field"] == "title"
-        for error in problem["errors"]
-    )
+    assert any(error["field"] == "title" for error in problem["errors"])
 
 
 def test_create_assignment_without_timezone(client):
@@ -193,10 +184,7 @@ def test_create_assignment_without_timezone(client):
         "validation-failed",
     )
 
-    assert any(
-        error["field"] == "due_at"
-        for error in problem["errors"]
-    )
+    assert any(error["field"] == "due_at" for error in problem["errors"])
 
 
 def test_create_assignment_unknown_student(client):
@@ -221,13 +209,12 @@ def test_create_assignment_unknown_course(client):
 # GET /assignments/{assignment_id}
 # ---------------------------------------------------------
 
+
 def test_get_assignment(client):
     created = create_assignment(client)
     assignment_id = created.json()["id"]
 
-    response = client.get(
-        f"/v1/assignments/{assignment_id}"
-    )
+    response = client.get(f"/v1/assignments/{assignment_id}")
 
     assert response.status_code == 200
     assert response.json()["id"] == assignment_id
@@ -235,9 +222,7 @@ def test_get_assignment(client):
 
 
 def test_get_unknown_assignment(client):
-    response = client.get(
-        "/v1/assignments/asg_unknown"
-    )
+    response = client.get("/v1/assignments/asg_unknown")
 
     assert_problem(response, 404, "not-found")
 
@@ -245,6 +230,7 @@ def test_get_unknown_assignment(client):
 # ---------------------------------------------------------
 # PATCH /assignments/{assignment_id}
 # ---------------------------------------------------------
+
 
 def test_update_assignment(client):
     created = create_assignment(client)
@@ -295,9 +281,7 @@ def test_completed_deadline_conflict(client):
 
     response = client.patch(
         path,
-        json={
-            "due_at": "2026-11-20T23:59:00-06:00"
-        },
+        json={"due_at": "2026-11-20T23:59:00-06:00"},
     )
 
     assert_problem(
@@ -313,10 +297,13 @@ def test_reopen_before_changing_deadline(client):
 
     path = f"/v1/assignments/{assignment_id}"
 
-    assert client.patch(
-        path,
-        json={"status": "completed"},
-    ).status_code == 200
+    assert (
+        client.patch(
+            path,
+            json={"status": "completed"},
+        ).status_code
+        == 200
+    )
 
     # Reopening and changing the deadline in one PATCH
     # must still be rejected.
@@ -345,16 +332,12 @@ def test_reopen_before_changing_deadline(client):
     # Then change the deadline in a separate request.
     changed = client.patch(
         path,
-        json={
-            "due_at": "2026-11-20T23:59:00-06:00"
-        },
+        json={"due_at": "2026-11-20T23:59:00-06:00"},
     )
 
     assert changed.status_code == 200
 
-    assert changed.json()["due_at"] == (
-        "2026-11-20T23:59:00-06:00"
-    )
+    assert changed.json()["due_at"] == ("2026-11-20T23:59:00-06:00")
 
 
 def test_update_unknown_assignment(client):
@@ -414,6 +397,7 @@ def test_update_requires_field(client):
 # DELETE /assignments/{assignment_id}
 # ---------------------------------------------------------
 
+
 def test_delete_assignment(client):
     created = create_assignment(client)
     assignment_id = created.json()["id"]
@@ -431,9 +415,7 @@ def test_delete_assignment(client):
 
 
 def test_delete_unknown_assignment(client):
-    response = client.delete(
-        "/v1/assignments/asg_unknown"
-    )
+    response = client.delete("/v1/assignments/asg_unknown")
 
     assert_problem(response, 404, "not-found")
 
@@ -441,6 +423,7 @@ def test_delete_unknown_assignment(client):
 # ---------------------------------------------------------
 # Shared HTTP error handling
 # ---------------------------------------------------------
+
 
 def test_unknown_path_returns_problem_details(client):
     response = client.get("/v1/does-not-exist")
@@ -453,14 +436,9 @@ def test_unsupported_method_has_allow_header(client):
 
     assert response.status_code == 405
 
-    assert response.headers["content-type"].startswith(
-        "application/problem+json"
-    )
+    assert response.headers["content-type"].startswith("application/problem+json")
 
-    allowed = {
-        method.strip()
-        for method in response.headers["Allow"].split(",")
-    }
+    allowed = {method.strip() for method in response.headers["Allow"].split(",")}
 
     assert {"GET", "POST"}.issubset(allowed)
     assert response.json()["status"] == 405
@@ -470,15 +448,14 @@ def test_unsupported_method_has_allow_header(client):
 # Regression tests for Schemathesis findings
 # ---------------------------------------------------------
 
+
 def test_create_assignment_rejects_malformed_json(client):
     """Malformed POST bodies must return the documented HTTP 422."""
 
     response = client.post(
         "/v1/assignments",
         content=b"\xff\xfe\xfa",
-        headers={
-            "Content-Type": "application/json"
-        },
+        headers={"Content-Type": "application/json"},
     )
 
     problem = assert_problem(
@@ -487,10 +464,7 @@ def test_create_assignment_rejects_malformed_json(client):
         "validation-failed",
     )
 
-    assert any(
-        error["field"] == "body"
-        for error in problem["errors"]
-    )
+    assert any(error["field"] == "body" for error in problem["errors"])
 
 
 def test_update_assignment_rejects_malformed_json(client):
@@ -499,9 +473,7 @@ def test_update_assignment_rejects_malformed_json(client):
     response = client.patch(
         "/v1/assignments/asg_unknown",
         content=b"\xff\xfe\xfa",
-        headers={
-            "Content-Type": "application/json"
-        },
+        headers={"Content-Type": "application/json"},
     )
 
     problem = assert_problem(
@@ -510,7 +482,4 @@ def test_update_assignment_rejects_malformed_json(client):
         "validation-failed",
     )
 
-    assert any(
-        error["field"] == "body"
-        for error in problem["errors"]
-    )
+    assert any(error["field"] == "body" for error in problem["errors"])

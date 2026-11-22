@@ -1,4 +1,3 @@
-
 """Example client for the Student Assignment Tracker API.
 
 Run:
@@ -12,10 +11,9 @@ cold starts on the deployed Render service.
 """
 
 import argparse
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx2 as httpx
-
 
 DEFAULT_BASE_URL = "https://se480-jonah-service.onrender.com"
 
@@ -78,7 +76,7 @@ def run_example(base_url: str) -> None:
             return
 
         # 3. Create a real assignment using discovered IDs.
-        deadline = datetime.now(timezone.utc) + timedelta(days=7)
+        deadline = datetime.now(UTC) + timedelta(days=7)
 
         assignment_data = {
             "student_id": students[0]["id"],
@@ -135,9 +133,7 @@ def run_example(base_url: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Demonstrate the Student Assignment Tracker API."
-    )
+    parser = argparse.ArgumentParser(description="Demonstrate the Student Assignment Tracker API.")
 
     parser.add_argument(
         "--base-url",

@@ -1,4 +1,3 @@
-
 """Contract and API drift tests for the Student Assignment Tracker."""
 
 from urllib.parse import urlsplit
@@ -11,11 +10,10 @@ from hypothesis import settings
 from app import store
 from app.main import app
 
-
 # Load the API contract written in Lab 2.
 schema = schemathesis.openapi.from_path("openapi.yaml")
 
-# Send generated requests directly to FastAPI, not to Render.
+# Send generated requests directly to FastAPI, not Render.
 schema.app = app
 schema.config.update(base_url="http://testserver/v1")
 
@@ -25,14 +23,14 @@ schema.config.update(base_url="http://testserver/v1")
 def test_contract(case):
     """Check generated requests and responses against openapi.yaml."""
 
-    # Each generated case gets a clean in-memory assignment store.
+    # Each generated case gets a clean assignment store.
     store.reset()
 
     case.call_and_validate()
 
 
 def test_api_drift():
-    """Check that the implemented operations match the design."""
+    """Check that implemented operations match our OpenAPI specification."""
 
     with open("openapi.yaml", encoding="utf-8") as file:
         specification = yaml.safe_load(file)
@@ -41,17 +39,23 @@ def test_api_drift():
     server = specification["servers"][0]
     server_url = server["url"]
 
-    for name, settings in server.get("variables", {}).items():
+    for name, variable_config in server.get("variables", {}).items():
         server_url = server_url.replace(
             "{" + name + "}",
-            settings["default"],
+            variable_config["default"],
         )
 
     base_path = urlsplit(server_url).path.rstrip("/")
 
     http_methods = {
-        "get", "post", "put", "patch",
-        "delete", "head", "options", "trace",
+        "get",
+        "post",
+        "put",
+        "patch",
+        "delete",
+        "head",
+        "options",
+        "trace",
     }
 
     # Operations declared in our hand-written API specification.
@@ -76,6 +80,5 @@ def test_api_drift():
     }
 
     assert actual == expected, (
-        f"Missing from code: {expected - actual}\n"
-        f"Missing from spec: {actual - expected}"
+        f"Missing from code: {expected - actual}\nMissing from spec: {actual - expected}"
     )

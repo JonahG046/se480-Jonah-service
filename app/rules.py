@@ -1,4 +1,3 @@
-
 """Business rules for the Student Assignment Tracker.
 
 These functions contain application rules without depending
