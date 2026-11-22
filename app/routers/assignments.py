@@ -1,4 +1,3 @@
-
 """Assignment endpoints for the Student Assignment Tracker.
 
 Implements the operations defined in openapi.yaml.
@@ -7,7 +6,7 @@ Assignments are stored in memory for Lab 3.
 
 from fastapi import APIRouter, Query, Response
 
-from app import rules, store
+from app import observability, rules, store
 from app.errors import (
     Conflict,
     NotFound,
@@ -18,7 +17,6 @@ from app.models import (
     AssignmentCreate,
     AssignmentUpdate,
 )
-
 
 router = APIRouter(prefix="/v1", tags=["Assignments"])
 
@@ -47,8 +45,7 @@ CONFLICT = {
     409: {
         **PROBLEM,
         "description": (
-            "A completed assignment must be reopened before "
-            "its deadline can be changed."
+            "A completed assignment must be reopened before its deadline can be changed."
         ),
     }
 }
@@ -60,10 +57,7 @@ def assignment_or_404(assignment_id: str) -> Assignment:
     assignment = store.ASSIGNMENTS.get(assignment_id)
 
     if assignment is None:
-        raise NotFound(
-            f"No assignment exists with ID {assignment_id}. "
-            "Check the ID and try again."
-        )
+        raise NotFound(f"No assignment exists with ID {assignment_id}. Check the ID and try again.")
 
     return assignment
 
@@ -83,8 +77,7 @@ def course_exists(course_id: str) -> None:
 
     if course_id not in store.COURSES:
         raise NotFound(
-            f"No course exists with ID {course_id}. "
-            "Use GET /v1/courses to see available courses."
+            f"No course exists with ID {course_id}. Use GET /v1/courses to see available courses."
         )
 
 
@@ -165,9 +158,7 @@ def create_assignment(
 
     store.ASSIGNMENTS[assignment.id] = assignment
 
-    response.headers["Location"] = (
-        f"/v1/assignments/{assignment.id}"
-    )
+    response.headers["Location"] = f"/v1/assignments/{assignment.id}"
 
     return assignment
 
@@ -218,6 +209,7 @@ def update_assignment(
     # This rule applies even when the same PATCH also
     # attempts to reopen the completed assignment.
     if rules.deadline_change_blocked(assignment, changes):
+        observability.DEADLINE_CONFLICTS.inc()
         raise Conflict(
             "Reopen the assignment before changing its deadline. "
             "First set its status to pending in a separate request."

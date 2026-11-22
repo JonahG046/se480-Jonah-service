@@ -1,4 +1,3 @@
-
 """Pydantic models for the Student Assignment Tracker API.
 
 These models follow the schemas defined in openapi.yaml.
@@ -19,6 +18,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from pydantic_core import PydanticCustomError
 
 
 class Student(BaseModel):
@@ -101,9 +101,9 @@ class AssignmentCreate(BaseModel):
         """
 
         if not isinstance(value, (str, datetime)):
-            raise ValueError(
-                "due_at must be a date-time string "
-                "with an explicit timezone offset"
+            raise PydanticCustomError(
+                "date_time_string",
+                "due_at must be a date-time string with an explicit timezone offset",
             )
 
         return value
@@ -171,9 +171,9 @@ class AssignmentUpdate(BaseModel):
             return value
 
         if not isinstance(value, (str, datetime)):
-            raise ValueError(
-                "due_at must be a date-time string "
-                "with an explicit timezone offset"
+            raise PydanticCustomError(
+                "date_time_string",
+                "due_at must be a date-time string with an explicit timezone offset",
             )
 
         return value
@@ -185,13 +185,9 @@ class AssignmentUpdate(BaseModel):
         changes = self.model_dump(exclude_unset=True)
 
         if not changes:
-            raise ValueError(
-                "At least one field must be provided."
-            )
+            raise ValueError("At least one field must be provided.")
 
         if any(value is None for value in changes.values()):
-            raise ValueError(
-                "Updated fields cannot be null."
-            )
+            raise ValueError("Updated fields cannot be null.")
 
         return self

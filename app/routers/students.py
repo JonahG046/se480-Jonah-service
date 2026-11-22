@@ -1,11 +1,9 @@
-
 """Read-only student endpoints."""
 
 from fastapi import APIRouter
 
 from app import store
 from app.models import Student
-
 
 router = APIRouter(prefix="/v1", tags=["Students"])
 
@@ -14,8 +12,7 @@ router = APIRouter(prefix="/v1", tags=["Students"])
     "/students",
     summary="List students",
     description=(
-        "Returns the students available in the system. "
-        "Student records are read-only in v1."
+        "Returns the students available in the system. Student records are read-only in v1."
     ),
     response_model=list[Student],
     response_model_exclude_none=True,
